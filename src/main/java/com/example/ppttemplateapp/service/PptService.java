@@ -94,30 +94,73 @@ public class PptService {
                  XMLSlideShow ppt = new XMLSlideShow(templateInputStream)) {
                 
                 int slideCount = 0;
+                int totalTextShapes = 0;
+                int placeholderCount = 0;
+                
                 for (XSLFSlide slide : ppt.getSlides()) {
                     slideCount++;
                     analysis.append("\n슬라이드 ").append(slideCount).append(":\n");
                     
+                    int shapeCount = 0;
                     for (XSLFShape shape : slide.getShapes()) {
+                        shapeCount++;
+                        
                         if (shape instanceof XSLFTextShape textShape) {
+                            totalTextShapes++;
+                            analysis.append("  [텍스트박스 ").append(shapeCount).append("]\n");
+                            
+                            // 텍스트박스의 전체 텍스트 가져오기
+                            String fullText = textShape.getText();
+                            if (fullText != null && !fullText.trim().isEmpty()) {
+                                analysis.append("    전체 텍스트: ").append(fullText.trim()).append("\n");
+                            }
+                            
+                            // 각 문단별 상세 분석
+                            int paraCount = 0;
                             for (XSLFTextParagraph para : textShape.getTextParagraphs()) {
+                                paraCount++;
+                                
                                 for (XSLFTextRun run : para.getTextRuns()) {
                                     String text = run.getRawText();
-                                    if (text != null) {
+                                    if (text != null && !text.trim().isEmpty()) {
                                         if (text.contains("${")) {
-                                            analysis.append("  플레이스홀더 발견: ").append(text).append("\n");
-                                        } else if (!text.trim().isEmpty()) {
-                                            analysis.append("  일반 텍스트: ").append(text).append("\n");
+                                            analysis.append("    ✓ 플레이스홀더: ").append(text).append("\n");
+                                            placeholderCount++;
+                                        } else {
+                                            analysis.append("    - 일반 텍스트: ").append(text.trim()).append("\n");
+                                        }
+                                        
+                                        // 폰트 정보
+                                        if (run.getFontFamily() != null) {
+                                            analysis.append("      폰트: ").append(run.getFontFamily());
+                                            if (run.getFontSize() != null) {
+                                                analysis.append(", 크기: ").append(run.getFontSize()).append("pt");
+                                            }
+                                            analysis.append("\n");
                                         }
                                     }
                                 }
                             }
+                        } else {
+                            analysis.append("  [기타 도형 ").append(shapeCount).append("]: ")
+                                    .append(shape.getClass().getSimpleName()).append("\n");
                         }
                     }
+                    
+                    if (shapeCount == 0) {
+                        analysis.append("  (빈 슬라이드)\n");
+                    }
                 }
+                
+                analysis.append("\n=== 요약 ===\n");
+                analysis.append("총 슬라이드 수: ").append(slideCount).append("\n");
+                analysis.append("총 텍스트박스 수: ").append(totalTextShapes).append("\n");
+                analysis.append("총 플레이스홀더 수: ").append(placeholderCount).append("\n");
+                
             }
         } catch (IOException e) {
             analysis.append("분석 중 오류 발생: ").append(e.getMessage());
+            logger.error("템플릿 분석 오류", e);
         }
         
         return analysis.toString();
